@@ -1,25 +1,21 @@
 // src/app/api/wishlist/[exchangeId]/user/[userId]/route.ts
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { verifySession } from "@/lib/auth";
-import { WishlistRepository } from "@/core/wishlist/wishlist.repository";
 import { ExchangeRepository } from "@/core/exchanges/exchange.repository";
-import { query } from "@/lib/db";
+import { ParticipantRepository } from "@/core/participants/participant.repository";
+import { WishlistRepository } from "@/core/wishlist/wishlist.repository";
 
-/**
- * GET — Get the wishlist of ANOTHER user (receiver)
- *
- * Only the following can see:
- * - The owner of the exchange
- * - The "giver" assigned to this receiver (in the active pairing)
- */
 export async function GET(
-  req: Request,
-  { params }: { params: { exchangeId: string; userId: string } }
+  req: NextRequest,
+  context: { params: Promise<{ exchangeId: string; userId: string }> }
 ) {
   try {
+    const { exchangeId, userId } = await context.params;
+
+    // Validate session
     const cookieStore = await cookies();
     const token = cookieStore.get("session")?.value;
     const session = await verifySession(token);
@@ -31,15 +27,10 @@ export async function GET(
       );
     }
 
-    const exchangeId = params.exchangeId;
-    const receiverId = params.userId;
-    const requesterId = session.sub;
+    // Load exchange to check owner permissions
+    const exRes = await ExchangeRepository.findById(exchangeId);
+    const exchange = exRes.rows?.[0];
 
-    //
-    // 1) Validate exchange exists
-    //
-    const exchangeQuery = await ExchangeRepository.findById(exchangeId);
-    const exchange = exchangeQuery.rows[0];
     if (!exchange) {
       return NextResponse.json(
         { ok: false, error: "Exchange not found" },
@@ -47,58 +38,39 @@ export async function GET(
       );
     }
 
-    //
-    // 2) Check if requester is exchange owner
-    //
-    const isOwner = exchange.owner_id === requesterId;
-
-    if (!isOwner) {
-      //
-      // 3) Validate pairing: requester must be giver of receiver
-      //
-      const pairingQuery = await query<{
-        giverId: string;
-      }>(
-        `
-        SELECT pp.giver_id AS "giverId"
-        FROM pairing_runs pr
-        JOIN pairing_pairs pp ON pp.pairing_run_id = pr.id
-        WHERE pr.exchange_id = $1
-          AND pr.is_active = TRUE
-          AND pp.receiver_id = $2
-        LIMIT 1
-        `,
-        [exchangeId, receiverId]
+    // Only owner may view another participant's wishlist
+    if (exchange.owner_id !== session.sub) {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden — Only the owner may view this wishlist" },
+        { status: 403 }
       );
-
-      const pairing = pairingQuery.rows[0];
-
-      if (!pairing || pairing.giverId !== requesterId) {
-        return NextResponse.json(
-          { ok: false, error: "Forbidden" },
-          { status: 403 }
-        );
-      }
     }
 
-    //
-    // 4) Load wishlist of the receiver
-    //
-    const wishlistQuery = await WishlistRepository.getByUser(
+    // Validate the target user IS a participant of this exchange
+    const isParticipantRes = await ParticipantRepository.isParticipant(
       exchangeId,
-      receiverId
+      userId
     );
-    const items = wishlistQuery.rows;
+
+    if (isParticipantRes.rows.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: "This user is not part of this exchange" },
+        { status: 400 }
+      );
+    }
+
+    // Load wishlist
+    const wishlistRes = await WishlistRepository.getByUser(exchangeId, userId);
 
     return NextResponse.json({
       ok: true,
-      receiverId,
-      items,
+      items: wishlistRes.rows,
     });
+
   } catch (err: any) {
-    console.error("WISHLIST_RECEIVER_GET_ERROR:", err);
+    console.error("ADMIN_USER_WISHLIST_ERROR:", err);
     return NextResponse.json(
-      { ok: false, error: err.message ?? "Internal error" },
+      { ok: false, error: err?.message ?? "Internal error" },
       { status: 500 }
     );
   }

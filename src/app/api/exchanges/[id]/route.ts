@@ -5,13 +5,15 @@ import { requireUser } from '@/lib/auth-helpers';
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const result = await ExchangeService.getById(params.id);
+    const { id: exchangeId } = await context.params;
+    
+    const result = await ExchangeService.getById(exchangeId);
 
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 404 });

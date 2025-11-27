@@ -1,5 +1,6 @@
 // src/app/api/exchanges/[id]/details/route.ts
-import { NextResponse } from "next/server";
+
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifySession } from "@/lib/auth";
 
@@ -8,25 +9,33 @@ import { ParticipantRepository } from "@/core/participants/participant.repositor
 import { PairingRepository } from "@/core/pairings/pairing.repository";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // NOTE: params is a Promise according to the generated RouteHandlerConfig
+    const { id: exchangeId } = await context.params;
+
+    // Session
     const cookieStore = await cookies();
     const token = cookieStore.get("session")?.value;
-
     const session = await verifySession(token);
-    if (!session) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
 
-    const exchangeId = params.id;
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
 
     // Exchange info
     const exRes = await ExchangeRepository.findById(exchangeId);
     const exchange = exRes.rows[0];
     if (!exchange) {
-      return NextResponse.json({ ok: false, error: "Exchange not found" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "Exchange not found" },
+        { status: 404 }
+      );
     }
 
     // Participants
@@ -41,13 +50,12 @@ export async function GET(
       ok: true,
       exchange,
       participants,
-      pairing
+      pairing,
     });
-
   } catch (err: any) {
     console.error("DETAILS_ERROR:", err);
     return NextResponse.json(
-      { ok: false, error: err.message ?? "Internal error" },
+      { ok: false, error: err?.message ?? "Internal error" },
       { status: 500 }
     );
   }

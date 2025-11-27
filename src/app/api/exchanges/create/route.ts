@@ -1,19 +1,23 @@
-import { NextResponse } from "next/server";
+// src/app/api/exchanges/create/route.ts
+
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { verifySession } from "@/lib/auth";
-import { PairingRepository } from "@/core/pairings/pairing.repository";
-import { WishlistRepository } from "@/core/wishlist/wishlist.repository";
+import { ExchangeRepository } from "@/core/exchanges/exchange.repository";
+import { ParticipantRepository } from "@/core/participants/participant.repository";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { exchangeId: string } }
-) {
+function generateInviteCode() {
+  return Math.random().toString(36).substring(2, 10).toUpperCase();
+}
+
+export async function POST(req: NextRequest) {
   try {
+    // Load session
     const cookieStore = await cookies();
     const token = cookieStore.get("session")?.value;
-
     const session = await verifySession(token);
+
     if (!session) {
       return NextResponse.json(
         { ok: false, error: "Unauthorized" },
@@ -21,43 +25,49 @@ export async function GET(
       );
     }
 
-    const exchangeId = params.exchangeId;
+    // Read body
+    const data = await req.json();
+    const { name, eventDate } = data ?? {};
 
-    // Load pairing
-    const pairing = await PairingRepository.getActiveView(exchangeId);
-    const pairs = pairing.rows;
-
-    if (pairs.length === 0) {
+    if (!name || !eventDate) {
       return NextResponse.json(
-        { ok: false, error: "No pairing exists" },
+        { ok: false, error: "Missing name or eventDate" },
         { status: 400 }
       );
     }
 
-    // Find who is YOUR receiver
-    const myPair = pairs.find((p: any) => p.giverId === session.sub);
+    // Generate invite code
+    const inviteCode = generateInviteCode();
 
-    if (!myPair) {
+    // Create exchange
+    const exRes = await ExchangeRepository.create(
+      session.sub,
+      name,
+      eventDate,
+      inviteCode
+    );
+
+    const exchange = exRes.rows?.[0];
+    if (!exchange) {
       return NextResponse.json(
-        { ok: false, error: "You are not part of the pairing" },
-        { status: 403 }
+        { ok: false, error: "Failed to create exchange" },
+        { status: 500 }
       );
     }
 
-    const receiverId = (myPair as any).receiverId;
-    const receiverName = myPair.receiverName;
-
-    // Get wishlist
-    const res = await WishlistRepository.getByUser(exchangeId, receiverId);
+    // Add owner as participant
+    await ParticipantRepository.add(exchange.id, session.sub);
 
     return NextResponse.json({
       ok: true,
-      partnerName: receiverName,
-      items: res.rows
+      exchange,
     });
 
-  } catch (err) {
-    console.error("PARTNER_WISHLIST_ERROR:", err);
-    return NextResponse.json({ ok: false, error: "Internal error" });
+  } catch (err: any) {
+    console.error("EXCHANGE_CREATE_ERROR:", err);
+    return NextResponse.json(
+      { ok: false, error: err?.message ?? "Internal error" },
+      { status: 500 }
+    );
   }
 }

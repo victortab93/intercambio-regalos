@@ -1,4 +1,4 @@
-import { sendEmail } from "./sendMail";
+import { sendEmail } from "./sendEmail";
 import { pairingCreatedTemplate } from "./templates/pairingCreated";
 import { pairingDeletedTemplate } from "./templates/pairingDeleted";
 import { inviteJoinedTemplate } from "./templates/inviteJoined";

@@ -15,6 +15,10 @@ export interface PairingRun {
   export interface PairingView {
     giverId: string;
     giverName: string;
+    receiverId: string;
     receiverName: string;
+    receiverEmail: string;
   }
+  
+
   

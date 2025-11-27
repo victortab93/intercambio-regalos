@@ -44,8 +44,8 @@ export function buildGoogleAuthUrl(invite?: string, redirectPath: string = "/exc
   };
 
   const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
+    client_id: String(GOOGLE_CLIENT_ID),
+    redirect_uri: String(GOOGLE_REDIRECT_URI),
     response_type: "code",
     scope: "openid email profile",
     access_type: "offline",
@@ -53,6 +53,7 @@ export function buildGoogleAuthUrl(invite?: string, redirectPath: string = "/exc
     state: encodeState(state),
     prompt: "consent"
   });
+  
 
   return `${GOOGLE_AUTH_BASE}?${params.toString()}`;
 }
