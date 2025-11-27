@@ -1,3 +1,6 @@
+// src/app/(protected)/layout.tsx
+export const dynamic = "force-dynamic"; // 🔥 <- add this line
+
 import { getSession } from "@/lib/get-session";
 import Navbar from "@/components/Navbar";
 import type { ReactNode } from "react";
@@ -16,7 +19,6 @@ export default async function ProtectedLayout({
     <div className="bg-magenta-50 min-h-screen">
       <Navbar user={{ name: session.name, email: session.email }} />
 
-      {/* ToastProvider is client-side */}
       <ToastProvider>
         <main className="max-w-5xl mx-auto px-4 py-8">
           {children}
