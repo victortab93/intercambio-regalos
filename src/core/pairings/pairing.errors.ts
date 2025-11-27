@@ -1,0 +1,9 @@
+// src/core/pairings/pairing.errors.ts
+
+export enum PairingErrorCode {
+    NOT_ENOUGH_PARTICIPANTS = 'PAIRING_NOT_ENOUGH_PARTICIPANTS',
+    ACTIVE_EXISTS = 'PAIRING_ACTIVE_EXISTS',
+    NOT_FOUND = 'PAIRING_NOT_FOUND',
+    INTERNAL = 'PAIRING_INTERNAL_ERROR'
+  }
+  
